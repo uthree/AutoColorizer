@@ -11,7 +11,6 @@ def to_lineart(image, filter_size=3, add_grayscale=False):
     out = abs_diff.mean(dim=1, keepdim=True)
     out = out.expand(-1, image.shape[1], -1, -1)
     out = F.conv2d(out, w, padding='same', groups=image.shape[1])
-    print(torch.max(torch.abs(out)))
     out = out / torch.max(torch.abs(out))
     out = out - 1
     out = - out
@@ -21,7 +20,7 @@ def to_lineart(image, filter_size=3, add_grayscale=False):
 
 # test
 
-img = Image.open('./test.jpg')
+img = Image.open('./test4.jpg')
 img = (np.array(img).transpose(2, 0, 1).astype(float) - 127.5) / 127.5
 img = torch.FloatTensor(img)
 img = img.unsqueeze(0)
