@@ -85,6 +85,28 @@ class ConvNeXtBlock(nn.Module):
 # Output: [N, style_dim]
 class StyleEncoder(nn.Module):
     def __init__(self, input_channels=3, stages=[2, 2, 2, 2], channels=[16, 32, 64, 128], style_dim=512):
-        self.stem = nn.Conv2D(input_channels, channels[0], 4, 4, 0)
-        self.seq = []
-        for i in range(len(stages)):
+        super().__init__()
+        self.stem = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
+        seq = []
+        self.to_style = nn.Linear(channels[-1], style_dim)
+        for i, (l, c) in enumerate(zip(stages, channels)):
+            for _ in range(l):
+                seq.append(ConvNeXtBlock(c))
+            if i != len(stages)-1:
+                seq.append(nn.AvgPool2d(kernel_size=2))
+                seq.append(nn.Conv2d(channels[i], channels[i+1], 1, 1, 0))
+                seq.append(ChannelNorm(channels[i+1]))
+        self.seq = nn.Sequential(*seq)
+
+    def forward(self, x):
+        x = self.stem(x)
+        x = self.seq(x)
+        x = torch.mean(x,dim=[2,3], keepdim=False)
+        x = self.to_style(x)
+        return x
+
+# test
+e = StyleEncoder()
+img = torch.randn(1, 3, 256, 256)
+out = e(img)
+print(out.shape)

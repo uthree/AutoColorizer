@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-from PIL import Image
 
 def to_lineart(image, filter_size=3, add_grayscale=False):
     w = torch.ones(image.shape[1] ,1, filter_size, filter_size) / (filter_size**2)
@@ -17,19 +15,4 @@ def to_lineart(image, filter_size=3, add_grayscale=False):
     if add_grayscale:
         out = (out + image.mean(dim=1, keepdim=True)) / 2
     return out
-
-# test
-
-img = Image.open('./test4.jpg')
-img = (np.array(img).transpose(2, 0, 1).astype(float) - 127.5) / 127.5
-img = torch.FloatTensor(img)
-img = img.unsqueeze(0)
-img = to_lineart(img)
-
-# save image
-img = img[0].cpu().numpy() * 127.5 + 127.5
-img = img.astype(np.int8)
-img = img.transpose(1,2,0)
-img = Image.fromarray(img, mode="RGB")
-img.save("out.jpg")
 
