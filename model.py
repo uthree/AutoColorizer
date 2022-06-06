@@ -15,52 +15,6 @@ class ChannelNorm(nn.Module):
         x = self.weight[:, None, None] * x + self.bias[:, None, None]
         return x
 
-class Conv2dMod(nn.Module):
-    def __init__(self, input_channels, output_channels, kernel_size=3, eps=1e-6, groups=1, demodulation=True):
-        super(Conv2dMod, self).__init__()
-        self.weight = nn.Parameter(torch.randn(output_channels, input_channels // groups, kernel_size, kernel_size, dtype=torch.float32))
-        nn.init.kaiming_normal_(self.weight, a=0, mode='fan_in', nonlinearity='leaky_relu') # initialize weight
-        self.input_channels = input_channels
-        self.output_channels = output_channels
-        self.kernel_size = kernel_size
-        self.eps = eps
-        self.demodulation = demodulation
-        self.groups = groups
-
-    def forward(self, x, y):
-        # x: (batch_size, input_channels, H, W)
-        # y: (batch_size, output_channels)
-        # self.weight: (output_channels, input_channels, kernel_size, kernel_size)
-        N, C, H, W = x.shape
-
-        # reshape weight
-        w1 = y[:, None, :, None, None]
-        w1 = w1.swapaxes(1, 2)
-        w2 = self.weight[None, :, :, :, :]
-        # modulate
-        weight = w2 * (w1 + 1)
-
-        # demodulate
-        if self.demodulation:
-            d = torch.rsqrt((weight ** 2).sum(dim=(2, 3, 4), keepdim=True) + self.eps)
-            weight = weight * d
-        # weight: (batch_size, output_channels, input_channels, kernel_size, kernel_size)
-
-        # reshape
-        x = x.reshape(1, -1, H, W)
-        _, _, *ws = weight.shape
-        weight = weight.reshape(self.output_channels * N, *ws)
-
-
-        # padding
-        x = F.pad(x, (self.kernel_size // 2, self.kernel_size // 2, self.kernel_size // 2, self.kernel_size // 2), mode='replicate')
-
-        # convolution
-        x = F.conv2d(x, weight, stride=1, padding=0, groups=N * self.groups)
-        x = x.reshape(N, self.output_channels, H, W)
-
-        return x
-
 class ConvNeXtBlock(nn.Module):
     def __init__(self, channels, dim_ffn=None, kernel_size=7):
         super(ConvNeXtBlock, self).__init__()
@@ -105,8 +59,18 @@ class StyleEncoder(nn.Module):
         x = self.to_style(x)
         return x
 
-# test
-e = StyleEncoder()
-img = torch.randn(1, 3, 256, 256)
-out = e(img)
-print(out.shape)
+class UNetBlock(nn.Module):
+    def __init__(self, stage, ch_conv):
+        super().__init__()
+        self.stage = stage
+        self.ch_conv = ch_conv
+
+# UNet (without style)
+class UNet(nn.Module):
+    def __init__(self, input_channels=4, output_channels=3, stages=[2,2,2,2], channels=[32, 64, 128, 256]):
+        super().__init__()
+        self.encoder_stages = nn.ModuleList([])
+        self.decoder_stages = nn.ModuleList([])
+        for i, (l, c) in enumerate(zip(stages, channels)):
+            enc_stage = [ConvNeXtBlock(c) for _ in range(l)]
+            enc_ch_conv = nn.Identity() if i == len(stages)-1 else nn.Sequential(nn.Conv2d(channels[i], channels[i+1], 1, 1, 0), nn.AvgPool2d(kernel_size=2))
