@@ -23,7 +23,7 @@ class ConvNeXtBlock(nn.Module):
         self.c1 = nn.Conv2d(channels, channels, kernel_size, 1, kernel_size//2, padding_mode='replicate', groups=channels)
         self.norm = ChannelNorm(channels)
         self.c2 = nn.Conv2d(channels, dim_ffn, 1, 1, 0)
-        self.gelu = nn.LeakyReLU(0.2)
+        self.gelu = nn.GELU()
         self.c3 = nn.Conv2d(dim_ffn, channels, 1, 1, 0)
 
     def forward(self, x):
@@ -36,13 +36,13 @@ class ConvNeXtBlock(nn.Module):
         return x + res
 
 # Input: [N, input_channels, 256, 256]
-# Output: [N, style_dim]
-class StyleEncoder(nn.Module):
-    def __init__(self, input_channels=3, stages=[2, 2, 2, 2], channels=[16, 32, 64, 128], style_dim=512):
+# Output: [N, output_features]
+class ConvNeXt(nn.Module):
+    def __init__(self, input_channels=3, stages=[3, 3, 9, 3], channels=[32, 64, 128, 256], output_features=256):
         super().__init__()
         self.stem = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
         seq = []
-        self.to_style = nn.Linear(channels[-1], style_dim)
+        self.out_linear = nn.Linear(channels[-1], output_features)
         for i, (l, c) in enumerate(zip(stages, channels)):
             for _ in range(l):
                 seq.append(ConvNeXtBlock(c))
@@ -56,7 +56,7 @@ class StyleEncoder(nn.Module):
         x = self.stem(x)
         x = self.seq(x)
         x = torch.mean(x,dim=[2,3], keepdim=False)
-        x = self.to_style(x)
+        x = self.out_linear(x)
         return x
 
 class UNetBlock(nn.Module):
@@ -67,7 +67,7 @@ class UNetBlock(nn.Module):
 
 # UNet
 class UNet(nn.Module):
-    def __init__(self, input_channels=4, output_channels=3, stages=[2,2,2,2], channels=[32, 64, 128, 256], stem=True, style=False, style_dim=512):
+    def __init__(self, input_channels=1, output_channels=3, stages=[2,2,2,2], channels=[32, 64, 128, 256], stem=True, style=False, style_dim=512):
         super().__init__()
         if stem:
             self.encoder_first = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
@@ -102,4 +102,9 @@ class UNet(nn.Module):
         x = self.decoder_last(x)
         return x
 
+
+D = ConvNeXt(output_features=1)
+img = torch.randn(1, 3, 256, 256)
+out = D(img)
+print(out.shape)
 
