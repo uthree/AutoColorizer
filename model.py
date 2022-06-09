@@ -67,10 +67,35 @@ class UNetBlock(nn.Module):
 
 # UNet (without style)
 class UNet(nn.Module):
-    def __init__(self, input_channels=4, output_channels=3, stages=[2,2,2,2], channels=[32, 64, 128, 256]):
+    def __init__(self, input_channels=4, output_channels=3, stages=[2,2,2,2], channels=[32, 64, 128, 256], stem=True):
         super().__init__()
+        if stem:
+            self.encoder_first = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
+            self.decoder_last = nn.ConvTranspose2d(channels[0], output_channels, 4, 4, 0)
+        else:
+            self.encoder_first = nn.Conv2d(input_channels, channels[0], 1, 1, 0)
+            self.decoder_last = nn.Conv2d(channels[0], output_channels, 1, 1, 0)
         self.encoder_stages = nn.ModuleList([])
         self.decoder_stages = nn.ModuleList([])
         for i, (l, c) in enumerate(zip(stages, channels)):
-            enc_stage = [ConvNeXtBlock(c) for _ in range(l)]
+            enc_stage = nn.Sequential(*[ConvNeXtBlock(c) for _ in range(l)])
             enc_ch_conv = nn.Identity() if i == len(stages)-1 else nn.Sequential(nn.Conv2d(channels[i], channels[i+1], 1, 1, 0), nn.AvgPool2d(kernel_size=2))
+            dec_stage = nn.Sequential(*[ConvNeXtBlock(c) for _ in range(l)])
+            dec_ch_conv = nn.Identity() if i == len(stages)-1 else nn.Sequential(nn.Conv2d(channels[i+1], channels[i], 1, 1, 0), nn.Upsample(scale_factor=2))
+            self.encoder_stages.append(UNetBlock(enc_stage, enc_ch_conv))
+            self.decoder_stages.insert(0, UNetBlock(dec_stage, dec_ch_conv))
+
+    def forward(self, x):
+        x = self.encoder_first(x)
+        skips = []
+        for l in self.encoder_stages:
+            x = l.stage(x)
+            skips.insert(0, x)
+            x = l.ch_conv(x)
+        for l, s in zip(self.decoder_stages, skips):
+            x = l.ch_conv(x)
+            x = l.stage(x + s)
+        x = self.decoder_last(x)
+        return x
+
+
