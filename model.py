@@ -103,8 +103,3 @@ class UNet(nn.Module):
         return x
 
 
-D = ConvNeXt(output_features=1)
-img = torch.randn(1, 3, 256, 256)
-out = D(img)
-print(out.shape)
-
