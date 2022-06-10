@@ -41,9 +41,14 @@ aug = transforms.Compose([
         transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
     ])
 
+MSE = torch.nn.MSELoss()
 bar_epoch = tqdm(total=len(ds) * NUM_EPOCH, position=1)
 bar_batch = tqdm(total=len(ds), position=0)
 dl = torch.utils.data.DataLoader(ds, batch_size=BATCH_SIZE, shuffle=True)
+style_encoder.to(device)
+unet.to(device)
+discriminator.to(device)
+
 optim_senc = optim.RAdam(style_encoder.parameters(), lr=1e4)
 optim_unet = optim.RAdam(unet.parameters(), lr=1e4)
 optim_disc = optim.RAdam(discriminator.parameters(), lr=1e4)
@@ -51,7 +56,13 @@ optim_disc = optim.RAdam(discriminator.parameters(), lr=1e4)
 for i in range(NUM_EPOCH):
     for j, img in enumerate(dl):
         N = img.shape[0]
-        
+        img = img.to(device)
+        img = aug(img)
+        lineart = to_lineart(img)[:, 0:1] # convert to lineart
+        style_input = aug(img)
+        # train generator
+        style = style_encoder(style_input)
+        fake = unet(lineart, style=style)
 
         bar_epoch.update(N)
         bar_batch.update(N)
