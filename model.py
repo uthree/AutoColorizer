@@ -76,11 +76,17 @@ class UNetBlock(nn.Module):
 
 # UNet
 class UNet(nn.Module):
-    def __init__(self, input_channels=1, output_channels=3, stages=[3,3,9,3], channels=[48, 64, 128, 256], stem=True, style=False, style_dim=512, tanh=True):
+    def __init__(self, input_channels=1, output_channels=3, stages=[3,3,9,3], channels=[32, 64, 128, 256], stem=True, style=False, style_dim=512, tanh=True):
         super().__init__()
         if stem:
             self.encoder_first = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
-            self.decoder_last = nn.ConvTranspose2d(channels[0], output_channels, 4, 4, 0)
+            self.decoder_last = nn.Sequential(
+                    nn.ConvTranspose2d(channels[0], channels[0], 4, 4, 0),
+                    nn.GELU(),
+                    nn.Conv2d(channels[0], channels[0], 3, 1, 1, padding_mode="replicate"),
+                    nn.GELU(),
+                    nn.Conv2d(channels[0], output_channels, 3, 1, 1, padding_mode="replicate"),
+                    )
         else:
             self.encoder_first = nn.Conv2d(input_channels, channels[0], 1, 1, 0)
             self.decoder_last = nn.Conv2d(channels[0], output_channels, 1, 1, 0)

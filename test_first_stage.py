@@ -11,8 +11,8 @@ from PIL import Image
 import numpy as np
 
 NUM_EPOCH = 1000
-MAX_DATASET_LEN = 200
-IMAGE_SIZE = 512
+MAX_DATASET_LEN = 50
+IMAGE_SIZE = 256
 test_dir = "./fs_test/"
 
 from config_first_stage import *
@@ -31,7 +31,7 @@ if os.path.exists("fs_style.pt"):
 if not os.path.exists(test_dir):
     os.mkdir(test_dir)
 
-ds = ImageDataset(["/mnt/f/anime-faces-kaggle/archive/danbooru-images/danbooru-images/"], max_len=MAX_DATASET_LEN, chache_dir="./test_chache/")
+ds = ImageDataset(["/mnt/d/local-develop/lineart2image_data_generator/colorized_256x/"], max_len=MAX_DATASET_LEN, chache_dir="./test_chache/")
 ds.set_size(IMAGE_SIZE)
 dl = torch.utils.data.DataLoader(ds, batch_size=2, shuffle=False)
 style_dim = unet_configs["style_dim"]
