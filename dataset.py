@@ -19,8 +19,9 @@ class ImageDataset(torch.utils.data.Dataset):
     def __init__(self, source_dir_pathes=[], chache_dir="./dataset_chache/", size=8, max_len=100000):
         super(ImageDataset, self).__init__()
         self.image_path_list = []
+        print("Getting paths")
         for dir_path in source_dir_pathes:
-            self.image_path_list += glob.glob(os.path.join(dir_path, "*.jpg")) + glob.glob(os.path.join(dir_path, "*.png"))
+            self.image_path_list += glob.glob(os.path.join(dir_path, "**/*.jpg"), recursive=True) + glob.glob(os.path.join(dir_path, "*.png"))
         self.chache_dir = chache_dir
         self.image_path_list = self.image_path_list[:max_len]
         self.size = -1

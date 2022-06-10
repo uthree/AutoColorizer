@@ -12,7 +12,7 @@ import numpy as np
 
 NUM_EPOCH = 1000
 MAX_DATASET_LEN = 200
-IMAGE_SIZE = 256
+IMAGE_SIZE = 512
 test_dir = "./fs_test/"
 
 from config_first_stage import *
@@ -31,7 +31,7 @@ if os.path.exists("fs_style.pt"):
 if not os.path.exists(test_dir):
     os.mkdir(test_dir)
 
-ds = ImageDataset(["/mnt/d/local-develop/lineart2image_data_generator/colorized_1024x/"], max_len=MAX_DATASET_LEN, chache_dir="./test_chache/")
+ds = ImageDataset(["/mnt/f/anime-faces-kaggle/archive/danbooru-images/danbooru-images/"], max_len=MAX_DATASET_LEN, chache_dir="./test_chache/")
 ds.set_size(IMAGE_SIZE)
 dl = torch.utils.data.DataLoader(ds, batch_size=2, shuffle=False)
 style_dim = unet_configs["style_dim"]
@@ -56,7 +56,7 @@ with torch.no_grad():
 
         # save style image
         path = os.path.join(test_dir, f"{i}_style.jpg")
-        img = Image.fromarray((image[1].cpu().numpy() * 127.5 + 127.5).astype(np.uint8).transpose(1,2,0), mode='RGB')
+        img = Image.fromarray((image[0].cpu().numpy() * 127.5 + 127.5).astype(np.uint8).transpose(1,2,0), mode='RGB')
         img = img.resize((256, 256))
         img.save(path)
 

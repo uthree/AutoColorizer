@@ -3,17 +3,17 @@ unet_configs = {
         "style_dim": 256,
         "input_channels": 1,
         "output_channels": 3,
-        "channels": [48, 64, 128, 256],
-        "stages": [3, 3, 9, 3],
+        "channels": [48, 64, 128, 128, 256],
+        "stages": [3, 3, 3, 9, 3],
         }
 style_encoder_configs = {
         "output_features": 256,
-        "channels": [16, 32, 64, 128],
-        "stages": [2, 2, 2, 2],
+        "channels": [16, 32, 64, 64, 128],
+        "stages": [2, 2, 2, 2, 2],
         }
 discriminator_configs = {
         "output_features": 1,
-        "channels": [24, 32, 64, 128],
-        "stages": [3, 3, 3, 3],
+        "channels": [24, 32, 64, 64, 128],
+        "stages": [3, 3, 3, 3, 3],
         "minibatch_std": True,
         }

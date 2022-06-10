@@ -10,10 +10,10 @@ import os
 from PIL import Image
 import numpy as np
 
-NUM_EPOCH = 1000
-BATCH_SIZE = 16
-IMAGE_SIZE = 256
-MAX_DATASET_LEN = 2000
+NUM_EPOCH = 100
+BATCH_SIZE = 8
+IMAGE_SIZE = 512
+MAX_DATASET_LEN = 20000
 result_dir = "./fs_results/"
 
 from config_first_stage import *
@@ -37,7 +37,7 @@ unet.to(device)
 style_encoder.to(device)
 discriminator.to(device)
 
-ds = ImageDataset(["/mnt/d/local-develop/lineart2image_data_generator/colorized_1024x/"], max_len=MAX_DATASET_LEN)
+ds = ImageDataset(["/mnt/f/anime-faces-kaggle/archive/danbooru-images/danbooru-images/"], max_len=MAX_DATASET_LEN)
 ds.set_size(IMAGE_SIZE)
 
 aug = transforms.Compose([
