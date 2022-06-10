@@ -38,11 +38,15 @@ class ConvNeXtBlock(nn.Module):
 # Input: [N, input_channels, 256, 256]
 # Output: [N, output_features]
 class ConvNeXt(nn.Module):
-    def __init__(self, input_channels=3, stages=[3, 3, 9, 3], channels=[32, 64, 128, 256], output_features=256):
+    def __init__(self, input_channels=3, stages=[3, 3, 9, 3], channels=[32, 64, 128, 256], output_features=256, minibatch_std=False):
         super().__init__()
         self.stem = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
         seq = []
-        self.out_linear = nn.Linear(channels[-1], output_features)
+        if minibatch_std:
+            self.out_linear = nn.Sequential(nn.Linear(channels[-1]+1, output_features), nn.Linear(output_features, output_features))
+        else:
+            self.out_linear = nn.Linear(channels[-1], output_features)
+        self.mb_std = minibatch_std
         for i, (l, c) in enumerate(zip(stages, channels)):
             for _ in range(l):
                 seq.append(ConvNeXtBlock(c))
@@ -56,7 +60,12 @@ class ConvNeXt(nn.Module):
         x = self.stem(x)
         x = self.seq(x)
         x = torch.mean(x,dim=[2,3], keepdim=False)
-        x = self.out_linear(x)
+        if self.mb_std:
+            mb_std = torch.std(x, dim=[0], keepdim=False).mean().unsqueeze(0).repeat(x.shape[0], 1)
+            x = torch.cat([x, mb_std], dim=1)
+            x = self.out_linear(x)
+        else:
+            x = self.out_linear(x)
         return x
 
 class UNetBlock(nn.Module):
@@ -67,7 +76,7 @@ class UNetBlock(nn.Module):
 
 # UNet
 class UNet(nn.Module):
-    def __init__(self, input_channels=1, output_channels=3, stages=[2,2,2,2], channels=[32, 64, 128, 256], stem=True, style=False, style_dim=512):
+    def __init__(self, input_channels=1, output_channels=3, stages=[3,3,9,3], channels=[48, 64, 128, 256], stem=True, style=False, style_dim=512, tanh=False):
         super().__init__()
         if stem:
             self.encoder_first = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
@@ -75,6 +84,7 @@ class UNet(nn.Module):
         else:
             self.encoder_first = nn.Conv2d(input_channels, channels[0], 1, 1, 0)
             self.decoder_last = nn.Conv2d(channels[0], output_channels, 1, 1, 0)
+        self.tanh = nn.Tanh() if tanh else nn.Identity()
         self.encoder_stages = nn.ModuleList([])
         self.decoder_stages = nn.ModuleList([])
         self.style = style
@@ -100,6 +110,7 @@ class UNet(nn.Module):
             x = l.ch_conv(x)
             x = l.stage(x + s)
         x = self.decoder_last(x)
+        x = self.tanh(x)
         return x
 
 
