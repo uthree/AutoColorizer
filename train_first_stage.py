@@ -10,7 +10,7 @@ import os
 from PIL import Image
 import numpy as np
 
-NUM_EPOCH = 100
+NUM_EPOCH = 1000
 BATCH_SIZE = 16
 IMAGE_SIZE = 256
 MAX_DATASET_LEN = 2000
