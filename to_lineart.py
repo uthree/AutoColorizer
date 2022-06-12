@@ -12,8 +12,9 @@ def to_lineart(image, filter_size=3, add_grayscale=False):
     out = F.conv2d(out, w, padding='same', groups=image.shape[1])
     out = out / torch.max(torch.abs(out))
     out = out - 1
-    out = - out
+    out = -out
     if add_grayscale:
         out = (out + image.mean(dim=1, keepdim=True)) / 2
+    out = torch.clamp(out, min=-1, max=1)
     return out
 

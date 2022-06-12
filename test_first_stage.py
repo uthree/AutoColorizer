@@ -11,7 +11,7 @@ from PIL import Image
 import numpy as np
 
 NUM_EPOCH = 1000
-MAX_DATASET_LEN = 50
+MAX_DATASET_LEN = 100
 IMAGE_SIZE = 256
 test_dir = "./fs_test/"
 
