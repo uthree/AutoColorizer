@@ -38,7 +38,7 @@ class ConvNeXtBlock(nn.Module):
 # Input: [N, input_channels, H, W]
 # Output: [N, output_features]
 class ConvNeXt(nn.Module):
-    def __init__(self, input_channels=3, stages=[2, 2, 3, 2], channels=[32, 64, 128, 256], output_features=256, minibatch_std=False):
+    def __init__(self, input_channels=3, stages=[2, 2, 3, 3], channels=[32, 64, 128, 256], output_features=256, minibatch_std=False):
         super().__init__()
         self.stem = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
         seq = []
@@ -76,7 +76,7 @@ class UNetBlock(nn.Module):
 
 # UNet with style
 class StyleUNet(nn.Module):
-    def __init__(self, input_channels=1, output_channels=3, stages=[2, 2, 2, 2], channels=[32, 64, 128, 256], style_dim=512, tanh=True):
+    def __init__(self, input_channels=1, output_channels=3, stages=[3, 3, 3, 3], channels=[32, 64, 128, 256], style_dim=512, tanh=True):
         super().__init__()
         self.encoder_first = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
 
@@ -108,7 +108,7 @@ class StyleUNet(nn.Module):
         x += self.style_affine(style).unsqueeze(2).unsqueeze(2).expand(-1, -1, x.shape[2], x.shape[3])
         for i, (l, s) in enumerate(zip(self.decoder_stages, skips)):
             x = l.ch_conv(x)
-            x = l.stage(x)
+            x = l.stage(x + skips[i])
         x = self.decoder_last(x)
         x = self.tanh(x)
         return x

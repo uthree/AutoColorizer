@@ -67,7 +67,7 @@ for i in range(NUM_EPOCH):
         fake = C(lineart, style)
         g_adv_loss = MSE(D(fake) ,torch.zeros(N, 1, device=device)) 
         g_mse_loss = MSE(fake, img)
-        g_loss = g_adv_loss + g_mse_loss
+        g_loss = g_mse_loss + g_adv_loss
         g_loss.backward()
         opt_s.step()
         opt_c.step()
