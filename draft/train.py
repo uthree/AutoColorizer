@@ -10,10 +10,10 @@ import os
 from PIL import Image
 import numpy as np
 
-NUM_EPOCH = 200
+NUM_EPOCH = 1000
 BATCH_SIZE = 16
 IMAGE_SIZE = 256
-MAX_DATASET_LEN = 20000
+MAX_DATASET_LEN = 5000
 result_dir = "./results/"
 
 GAN = DraftGAN()
@@ -65,7 +65,7 @@ for i in range(NUM_EPOCH):
         opt_c.zero_grad()
         style = S(style_input)
         fake = C(lineart, style)
-        g_adv_loss = MSE(D(fake) ,torch.zeros(N, 1, device=device)) 
+        g_adv_loss = MSE(D(fake), torch.zeros(N, 1, device=device)) 
         g_mse_loss = MSE(fake, img)
         g_loss = g_mse_loss + g_adv_loss
         g_loss.backward()
@@ -77,8 +77,8 @@ for i in range(NUM_EPOCH):
         fake = fake.detach()
         logit_fake = D(fake)
         logit_real = D(img)
-        d_loss_f = MSE(logit_fake ,torch.ones(N, 1, device=device))
-        d_loss_r = MSE(logit_real ,torch.zeros(N, 1, device=device))
+        d_loss_f = MSE(logit_fake, torch.ones(N, 1, device=device))
+        d_loss_r = MSE(logit_real, torch.zeros(N, 1, device=device))
         d_loss = d_loss_f + d_loss_r
         d_loss.backward()
         opt_d.step()

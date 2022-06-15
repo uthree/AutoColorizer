@@ -38,7 +38,7 @@ class ConvNeXtBlock(nn.Module):
 # Input: [N, input_channels, H, W]
 # Output: [N, output_features]
 class ConvNeXt(nn.Module):
-    def __init__(self, input_channels=3, stages=[2, 2, 3, 3], channels=[32, 64, 128, 256], output_features=256, minibatch_std=False):
+    def __init__(self, input_channels=3, stages=[3, 3, 3, 3], channels=[32, 64, 128, 256], output_features=256, minibatch_std=False):
         super().__init__()
         self.stem = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
         seq = []
@@ -76,15 +76,16 @@ class UNetBlock(nn.Module):
 
 # UNet with style
 class StyleUNet(nn.Module):
-    def __init__(self, input_channels=1, output_channels=3, stages=[3, 3, 3, 3], channels=[32, 64, 128, 256], style_dim=512, tanh=True):
+    def __init__(self, input_channels=1, output_channels=3, stages=[3, 3, 9, 3], channels=[32, 64, 128, 256], style_dim=512, tanh=True):
         super().__init__()
         self.encoder_first = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
 
         self.decoder_last = nn.Sequential(
-                nn.ConvTranspose2d(channels[0], output_channels*3, 4, 4, 0),
-                nn.Conv2d(output_channels*3, output_channels*2, 3, 1, 1, padding_mode='replicate'),
+                nn.ConvTranspose2d(channels[0], output_channels*6, 4, 4, 0),
                 nn.GELU(),
-                nn.Conv2d(output_channels*2, output_channels, 3, 1, 1, padding_mode='replicate'),
+                nn.Conv2d(output_channels*6, output_channels*3, 3, 1, 1, padding_mode='replicate'),
+                nn.GELU(),
+                nn.Conv2d(output_channels*3, output_channels, 3, 1, 1, padding_mode='replicate'),
                 )
         self.style_affine = nn.Linear(style_dim, channels[-1]) 
         self.tanh = nn.Tanh() if tanh else nn.Identity()
@@ -108,7 +109,7 @@ class StyleUNet(nn.Module):
         x += self.style_affine(style).unsqueeze(2).unsqueeze(2).expand(-1, -1, x.shape[2], x.shape[3])
         for i, (l, s) in enumerate(zip(self.decoder_stages, skips)):
             x = l.ch_conv(x)
-            x = l.stage(x + skips[i])
+            x = l.stage(x + s)
         x = self.decoder_last(x)
         x = self.tanh(x)
         return x
@@ -116,6 +117,6 @@ class StyleUNet(nn.Module):
 class DraftGAN(nn.Module):
     def __init__(self, style_dim=256):
         super().__init__()
-        self.style_encoder = ConvNeXt(output_features=style_dim, minibatch_std=False)
-        self.discriminator = ConvNeXt(output_features=1, minibatch_std=True)
+        self.style_encoder = ConvNeXt(output_features=style_dim, minibatch_std=False, stages=[2, 2, 2, 2], channels=[16, 32, 64, 128])
+        self.discriminator = ConvNeXt(output_features=1, minibatch_std=True, stages=[3,3,3,3], channels=[24, 32, 64, 128])
         self.colorizer = StyleUNet(style_dim=style_dim)
