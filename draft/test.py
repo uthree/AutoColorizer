@@ -10,23 +10,14 @@ import os
 from PIL import Image
 import numpy as np
 
-NUM_EPOCH = 1000
 MAX_DATASET_LEN = 100
 IMAGE_SIZE = 256
-test_dir = "./fs_test/"
+test_dir = "./test/"
 
-from config_first_stage import *
-unet = UNet(**unet_configs)
-style_encoder = ConvNeXt(**style_encoder_configs)
-discriminator = ConvNeXt(**discriminator_configs)
-
-if os.path.exists("fs_unet.pt"):
-    unet.load_state_dict(torch.load("fs_unet.pt"))
-    print("Loaded UNet")
-if os.path.exists("fs_style.pt"):
-    style_encoder.load_state_dict(torch.load("fs_style.pt"))
-    print("Loaded style encoder")
-
+GAN = DraftGAN()
+if os.path.exists("model.pt"):
+    GAN.load_state_dict(torch.load("Model.pt"))
+    print("Loaded Model")
 
 if not os.path.exists(test_dir):
     os.mkdir(test_dir)
@@ -34,13 +25,12 @@ if not os.path.exists(test_dir):
 ds = ImageDataset(["/mnt/d/local-develop/lineart2image_data_generator/colorized_256x/"], max_len=MAX_DATASET_LEN, chache_dir="./test_chache/")
 ds.set_size(IMAGE_SIZE)
 dl = torch.utils.data.DataLoader(ds, batch_size=2, shuffle=False)
-style_dim = unet_configs["style_dim"]
 
 with torch.no_grad():
     for i, image in enumerate(dl):
-        style = style_encoder(image[0:1])
+        style = GAN.style_encoder(image[0:1])
         lineart = to_lineart(image[1:2])[:, 0:1]
-        out = unet(lineart, style=style)
+        out = GAN.colorizer(lineart, style=style)
     
         # save lineart
         path = os.path.join(test_dir, f"{i}_lineart.jpg")
@@ -59,5 +49,3 @@ with torch.no_grad():
         img = Image.fromarray((image[0].cpu().numpy() * 127.5 + 127.5).astype(np.uint8).transpose(1,2,0), mode='RGB')
         img = img.resize((256, 256))
         img.save(path)
-
-

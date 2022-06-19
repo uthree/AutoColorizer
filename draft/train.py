@@ -10,32 +10,20 @@ import os
 from PIL import Image
 import numpy as np
 
-NUM_EPOCH = 2000
+NUM_EPOCH = 1000
 BATCH_SIZE = 16
 IMAGE_SIZE = 256
 MAX_DATASET_LEN = 20000
-result_dir = "./fs_results/"
+result_dir = "./results/"
 
-from config_first_stage import *
-unet = UNet(**unet_configs)
-style_encoder = ConvNeXt(**style_encoder_configs)
-discriminator = ConvNeXt(**discriminator_configs)
+GAN = DraftGAN()
 
-if os.path.exists("fs_unet.pt"):
-    unet.load_state_dict(torch.load("fs_unet.pt"))
-    print("Loaded UNet")
-if os.path.exists("fs_style.pt"):
-    style_encoder.load_state_dict(torch.load("fs_style.pt"))
-    print("Loaded style encoder")
-if os.path.exists("fs_discriminator.pt"):
-    print("Loaded discriminator")
-    discriminator.load_state_dict(torch.load("fs_discriminator.pt"))
+if os.path.exists("model.pt"):
+    GAN.load_state_dict(torch.load("model.pt"))
+    print("Loaded Model")
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-unet.to(device)
-style_encoder.to(device)
-discriminator.to(device)
+GAN.to(device)
 
 ds = ImageDataset(["/mnt/d/local-develop/lineart2image_data_generator/colorized_256x/"], max_len=MAX_DATASET_LEN)
 ds.set_size(IMAGE_SIZE)
@@ -52,13 +40,14 @@ MSE = torch.nn.MSELoss()
 bar_epoch = tqdm(total=len(ds) * NUM_EPOCH, position=1)
 bar_batch = tqdm(total=len(ds), position=0)
 dl = torch.utils.data.DataLoader(ds, batch_size=BATCH_SIZE, shuffle=True)
-style_encoder.to(device)
-unet.to(device)
-discriminator.to(device)
 
-optim_senc = optim.RAdam(style_encoder.parameters(), lr=1e-4)
-optim_unet = optim.RAdam(unet.parameters(), lr=1e-4)
-optim_disc = optim.RAdam(discriminator.parameters(), lr=1e-4)
+opt_s = optim.RAdam(GAN.style_encoder.parameters(), lr=1e-4)
+opt_c = optim.RAdam(GAN.colorizer.parameters(), lr=1e-4)
+opt_d = optim.RAdam(GAN.discriminator.parameters(), lr=1e-4)
+
+S = GAN.style_encoder
+C = GAN.colorizer
+D = GAN.discriminator
 
 # create result directory
 if not os.path.exists(result_dir):
@@ -72,27 +61,27 @@ for i in range(NUM_EPOCH):
         lineart = to_lineart(img)[:, 0:1] # convert to lineart
         style_input = aug(img)
         # train generator
-        optim_senc.zero_grad()
-        optim_unet.zero_grad()
-        style = style_encoder(style_input)
-        fake = unet(lineart, style=style)
-        g_adv_loss = MSE(discriminator(fake) ,torch.zeros(N, 1, device=device)) 
+        opt_s.zero_grad()
+        opt_c.zero_grad()
+        style = S(style_input)
+        fake = C(lineart, style)
+        g_adv_loss = MSE(D(fake), torch.zeros(N, 1, device=device)) 
         g_mse_loss = MSE(fake, img)
-        g_loss = g_adv_loss + g_mse_loss
+        g_loss = g_mse_loss + g_adv_loss
         g_loss.backward()
-        optim_senc.step()
-        optim_unet.step()
+        opt_s.step()
+        opt_c.step()
 
         # train discriminator
-        optim_disc.zero_grad()
+        opt_d.zero_grad()
         fake = fake.detach()
-        logit_fake = discriminator(fake)
-        logit_real = discriminator(img)
-        d_loss_f = MSE(logit_fake ,torch.ones(N, 1, device=device))
-        d_loss_r = MSE(logit_real ,torch.zeros(N, 1, device=device))
+        logit_fake = D(fake)
+        logit_real = D(img)
+        d_loss_f = MSE(logit_fake, torch.ones(N, 1, device=device))
+        d_loss_r = MSE(logit_real, torch.zeros(N, 1, device=device))
         d_loss = d_loss_f + d_loss_r
         d_loss.backward()
-        optim_disc.step()
+        opt_d.step()
 
         # set bar description
         bar_batch.set_description(desc=f"G.Loss:{g_loss.item():.4f}(MSE: {g_mse_loss.item():.4f}, Adv.:{g_adv_loss.item():.4f}) D.Loss: {d_loss.item():.4f}")
@@ -111,9 +100,7 @@ for i in range(NUM_EPOCH):
             img.save(path)
 
             # save model
-            torch.save(unet.state_dict(), "./fs_unet.pt")
-            torch.save(style_encoder.state_dict(), "./fs_style.pt")
-            torch.save(discriminator.state_dict(), "./fs_discriminator.pt")
+            torch.save(GAN.state_dict(), "./model.pt")
 
         bar_epoch.update(N)
         bar_batch.update(N)

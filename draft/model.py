@@ -35,10 +35,10 @@ class ConvNeXtBlock(nn.Module):
         x = self.c3(x)
         return x + res
 
-# Input: [N, input_channels, 256, 256]
+# Input: [N, input_channels, H, W]
 # Output: [N, output_features]
 class ConvNeXt(nn.Module):
-    def __init__(self, input_channels=3, stages=[3, 3, 9, 3], channels=[32, 64, 128, 256], output_features=256, minibatch_std=False):
+    def __init__(self, input_channels=3, stages=[3, 3, 3, 3], channels=[32, 64, 128, 256], output_features=256, minibatch_std=False):
         super().__init__()
         self.stem = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
         seq = []
@@ -51,8 +51,7 @@ class ConvNeXt(nn.Module):
             for _ in range(l):
                 seq.append(ConvNeXtBlock(c))
             if i != len(stages)-1:
-                seq.append(nn.AvgPool2d(kernel_size=2))
-                seq.append(nn.Conv2d(channels[i], channels[i+1], 1, 1, 0))
+                seq.append(nn.Conv2d(channels[i], channels[i+1], 2, 2, 0))
                 seq.append(ChannelNorm(channels[i+1]))
         self.seq = nn.Sequential(*seq)
 
@@ -74,49 +73,49 @@ class UNetBlock(nn.Module):
         self.stage = stage
         self.ch_conv = ch_conv
 
-# UNet
-class UNet(nn.Module):
-    def __init__(self, input_channels=1, output_channels=3, stages=[3,3,9,3], channels=[32, 64, 128, 256], stem=True, style=False, style_dim=512, tanh=True):
+# UNet with style
+class StyleUNet(nn.Module):
+    def __init__(self, input_channels=1, output_channels=3, stages=[3, 3, 9, 3], channels=[32, 64, 128, 256], style_dim=512, tanh=True):
         super().__init__()
-        if stem:
-            self.encoder_first = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
-            self.decoder_last = nn.Sequential(
-                    nn.ConvTranspose2d(channels[0], channels[0], 4, 4, 0),
-                    nn.GELU(),
-                    nn.Conv2d(channels[0], channels[0], 3, 1, 1, padding_mode="replicate"),
-                    nn.GELU(),
-                    nn.Conv2d(channels[0], output_channels, 3, 1, 1, padding_mode="replicate"),
-                    )
-        else:
-            self.encoder_first = nn.Conv2d(input_channels, channels[0], 1, 1, 0)
-            self.decoder_last = nn.Conv2d(channels[0], output_channels, 1, 1, 0)
+        self.encoder_first = nn.Conv2d(input_channels, channels[0], 4, 4, 0)
+
+        self.decoder_last = nn.Sequential(
+                nn.ConvTranspose2d(channels[0], output_channels*6, 4, 4, 0),
+                nn.GELU(),
+                nn.Conv2d(output_channels*6, output_channels*3, 3, 1, 1, padding_mode='replicate'),
+                nn.GELU(),
+                nn.Conv2d(output_channels*3, output_channels, 3, 1, 1, padding_mode='replicate'),
+                )
+        self.style_affine = nn.Linear(style_dim, channels[-1]) 
         self.tanh = nn.Tanh() if tanh else nn.Identity()
         self.encoder_stages = nn.ModuleList([])
         self.decoder_stages = nn.ModuleList([])
-        self.style = style
-        self.style_affine = nn.Linear(style_dim, channels[-1]) if style else nn.Identity()
         for i, (l, c) in enumerate(zip(stages, channels)):
             enc_stage = nn.Sequential(*[ConvNeXtBlock(c) for _ in range(l)])
-            enc_ch_conv = nn.Identity() if i == len(stages)-1 else nn.Sequential(nn.Conv2d(channels[i], channels[i+1], 1, 1, 0), nn.AvgPool2d(kernel_size=2))
+            enc_ch_conv = nn.Identity() if i == len(stages)-1 else nn.Sequential(nn.Conv2d(channels[i], channels[i+1], 2, 2, 0), ChannelNorm(channels[i+1]))
             dec_stage = nn.Sequential(*[ConvNeXtBlock(c) for _ in range(l)])
-            dec_ch_conv = nn.Identity() if i == len(stages)-1 else nn.Sequential(nn.Conv2d(channels[i+1], channels[i], 1, 1, 0), nn.Upsample(scale_factor=2))
+            dec_ch_conv = nn.Identity() if i == len(stages)-1 else nn.Sequential(nn.ConvTranspose2d(channels[i+1], channels[i], 2, 2, 0), ChannelNorm(channels[i]))
             self.encoder_stages.append(UNetBlock(enc_stage, enc_ch_conv))
             self.decoder_stages.insert(0, UNetBlock(dec_stage, dec_ch_conv))
 
-    def forward(self, x, style=None):
+    def forward(self, x, style):
         x = self.encoder_first(x)
         skips = []
         for l in self.encoder_stages:
             x = l.stage(x)
             skips.insert(0, x)
             x = l.ch_conv(x)
-        if self.style:
-            x += self.style_affine(style).unsqueeze(2).unsqueeze(2).expand(-1, -1, x.shape[2], x.shape[3])
-        for l, s in zip(self.decoder_stages, skips):
+        x += self.style_affine(style).unsqueeze(2).unsqueeze(2).expand(-1, -1, x.shape[2], x.shape[3])
+        for i, (l, s) in enumerate(zip(self.decoder_stages, skips)):
             x = l.ch_conv(x)
             x = l.stage(x + s)
         x = self.decoder_last(x)
         x = self.tanh(x)
         return x
 
-
+class DraftGAN(nn.Module):
+    def __init__(self, style_dim=256):
+        super().__init__()
+        self.style_encoder = ConvNeXt(output_features=style_dim, minibatch_std=False, stages=[2, 2, 2, 2], channels=[16, 32, 64, 128])
+        self.discriminator = ConvNeXt(output_features=1, minibatch_std=True, stages=[3,3,3,3], channels=[24, 32, 64, 128])
+        self.colorizer = StyleUNet(style_dim=style_dim)
