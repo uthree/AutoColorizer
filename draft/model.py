@@ -51,8 +51,7 @@ class ConvNeXt(nn.Module):
             for _ in range(l):
                 seq.append(ConvNeXtBlock(c))
             if i != len(stages)-1:
-                seq.append(nn.AvgPool2d(kernel_size=2))
-                seq.append(nn.Conv2d(channels[i], channels[i+1], 1, 1, 0))
+                seq.append(nn.Conv2d(channels[i], channels[i+1], 2, 2, 0))
                 seq.append(ChannelNorm(channels[i+1]))
         self.seq = nn.Sequential(*seq)
 
@@ -93,9 +92,9 @@ class StyleUNet(nn.Module):
         self.decoder_stages = nn.ModuleList([])
         for i, (l, c) in enumerate(zip(stages, channels)):
             enc_stage = nn.Sequential(*[ConvNeXtBlock(c) for _ in range(l)])
-            enc_ch_conv = nn.Identity() if i == len(stages)-1 else nn.Sequential(nn.Conv2d(channels[i], channels[i+1], 1, 1, 0), nn.AvgPool2d(kernel_size=2))
+            enc_ch_conv = nn.Identity() if i == len(stages)-1 else nn.Sequential(nn.Conv2d(channels[i], channels[i+1], 2, 2, 0), ChannelNorm(channels[i+1]))
             dec_stage = nn.Sequential(*[ConvNeXtBlock(c) for _ in range(l)])
-            dec_ch_conv = nn.Identity() if i == len(stages)-1 else nn.Sequential(nn.Conv2d(channels[i+1], channels[i], 1, 1, 0), nn.Upsample(scale_factor=2))
+            dec_ch_conv = nn.Identity() if i == len(stages)-1 else nn.Sequential(nn.ConvTranspose2d(channels[i+1], channels[i], 2, 2, 0), ChannelNorm(channels[i]))
             self.encoder_stages.append(UNetBlock(enc_stage, enc_ch_conv))
             self.decoder_stages.insert(0, UNetBlock(dec_stage, dec_ch_conv))
 

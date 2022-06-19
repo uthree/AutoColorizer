@@ -13,7 +13,7 @@ import numpy as np
 NUM_EPOCH = 1000
 BATCH_SIZE = 16
 IMAGE_SIZE = 256
-MAX_DATASET_LEN = 5000
+MAX_DATASET_LEN = 20000
 result_dir = "./results/"
 
 GAN = DraftGAN()
